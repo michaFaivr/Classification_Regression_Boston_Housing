@@ -1,0 +1,408 @@
+---
+  output:
+  pdf_document: default
+html_document: default
+---
+
+Confusion Matrix: A breakdown of predictions into a table showing correct predictions (the diagonal) and the types of incorrect predictions made (what classes incorrect predictions were assigned).
+Precision: A measure of a classifiers exactness.
+Recall: A measure of a classifiers completeness
+F1 Score (or F-score): A weighted average of precision and recall.
+I would also advice you to take a look at the following:
+
+Kappa (or Cohen's kappa): Classification accuracy normalized by the imbalance of the classes in the data.
+ROC Curves: Like precision and recall, accuracy is divided into sensitivity and specificity and models can be chosen based on the balance thresholds of these values.
+
+
+Variable description
+DATASET from :
+https://archive.ics.uci.edu/ml/datasets.html
+ENB_2012.data.xlsx
+
+
+Data description:
+
+Data Set Characteristics:  Multivariate
+Number of Instances: 768
+Area: Computer
+Attribute Characteristics: Integer, Real
+Number of Attributes:8
+Date Donated
+2012-11-30
+Associated Tasks:Classification, Regression
+Missing Values? N/A
+Number of Web Hits: 109406
+
+Data Set Information:
+
+We perform energy analysis using 12 different building shapes simulated in Ecotect. The buildings differ with respect to the glazing area, the glazing area distribution, and the orientation, amongst other parameters. We simulate various settings as functions of the afore-mentioned characteristics to obtain 768 building shapes. The dataset comprises 768 samples and 8 features, aiming to predict two real valued responses. It can also be used as a multi-class classification problem if the response is rounded to the nearest integer.
+
+REFS: https://rstudio-pubs-static.s3.amazonaws.com/35817_2552e05f1d4e4db8ba87b334101a43da.htmlS
+!!!! http://www.sthda.com/french/wiki/ggplot2-combiner-plusieurs-graphiques-sur-la-m-me-page-logiciel-r-et-visualisation-de-donn-es
+
+
+POSSIBLE DATASETS FROM https://archive.ics.uci.edu/ml/datasets.html
+to apply classification/regression methods
+--------------------
+- student performance (650,33)#obs, #vars
+- energy ENB_2012.data.xlsx
+- 
+
+TOOLS TO USE:
+- linear discriminant analysis (Fischer) --> equations discriminantes 
+- variance(between groups)/variance(within group): Cross-Entropy
+- train/test cf code matlab Amir 
+- logit/softmax/MLE
+
+
+CLASSIFICATION medv ASSESSMENT
+- 1-to-1 plot Output vs target
+- Misclassification assessment and improvement
+- Accuracy of prediction for each method
+- Confusion Matrix --> good detection/false true/non detected true 
+- ROC/AUC
+
+
+STEPS : REFS codes
+- PCA : Olympics10.py
+- CART: 
+
+ISSUES TO ADDRESS
+- outliers : keep or not (Tail distrib discussion)
+- categorical vars
+- missing values
+- overfitting
+
+CHECKING/TESTS
+- comparable variance shapes from one group to the other (homoscedasticity)
+cf other condition for LDA
+- gaussianity of errors
+
+PLOTS 
+https://www.r-bloggers.com/plot-some-variables-against-many-others-with-tidyr-and-ggplot2/
+http://docs.ggplot2.org/0.9.3/geom_point.html
+http://www.sthda.com/french/wiki/ggplot2-combiner-plusieurs-graphiques-sur-la-m-me-page-logiciel-r-et-visualisation-de-donn-es
+--> cf Iris realted graphs!!!!!
+http://stackoverflow.com/questions/17271968/different-breaks-per-facet-in-ggplot2-histogram
+http://docs.ggplot2.org/0.9.3/geom_point.html
+http://www.sthda.com/english/wiki/be-awesome-in-ggplot2-a-practical-guide-to-be-highly-effective-r-software-and-data-visualization#at_pco=smlwn-1.0&at_si=58ade3779048414c&at_ab=per-2&at_pos=0&at_tot=1
+http://stackoverflow.com/questions/14982311/include-source-code-to-function-from-external-file-in-r
+https://www.analyticsvidhya.com/blog/2016/03/practical-guide-deal-imbalanced-classification-problems/
+
+https://www.r-bloggers.com/unbalanced-data-is-a-problem-no-balanced-data-is-worse/
+1) all variable histograms ok 
+2) correlogram ok 
+3) scatter plot crossed-dominant vars ok
+4) boxplot ok
+5) LDA with imbalanced data All 7 classes ok
+6) LDA with imbalanced data 2 level classes ok
+
+
+..... ASSIGNMENT :
+1) describe database
+   cf Baseline function
+2) var-cov (center-reduce vars)
+3) Variable selection : PCA, other method
+3) classifier ou regression from lib : OLS, Logistic Reg, RF, Naive Bayesian (from libs)
+4) Kernel density estimator (from lib)
+5) Neural Network : function
+
+other datasets to try:
+https://archive.ics.uci.edu/ml/datasets/default+of+credit+card+clients
+
+REFS: https://rstudio-pubs-static.s3.amazonaws.com/35817_2552e05f1d4e4db8ba87b334101a43da.htmlS
+
+External functions from the package :
+- function.unitarycircle
+- function.accuracy
+- function.balancer
+- function.filterNan
+- function.getdataset
+- function.reduceClass
+- function.specs
+
+DATASET
+- 1) house medv 
+- 2) Boston housing value
+
+http://www.statmethods.net/advstats/discriminant.html
+
+```{r}
+library(cluster)
+library(FactoMineR)
+library(stringr)
+library(xlsx)
+library(ggplot2)
+library(rpart)
+
+print("start")
+```
+  
+```{r}
+#X11()
+current.path = 'C:/Users/MichaelFaivre/Documents/Personnel/DSTI/14-NEURANETWORKS_AI/R_codes'
+```
+
+use shuffled in trainset/testset
+
+
+
+3 codes dans le package :
+- PROJET_simplified_Housing.Rmd : 10 models tested Linerar/NL except NNet on MASS Boston RealEstate prices with discretized data for response variable 6 levels
+- PROJET_simplified_WineQuality.Rmd : same as above but for WineQuality data UCI
+- PROJET_NeuralNet_Housing.Rmd
+
+
+
+#===========================================
+#=== 1) read Data and build data frames ====
+#===========================================
+#==== 1.a) data from MASS Boston house price
+```{r}
+set.seed(500)
+library(MASS)
+dataHouse <- Boston
+
+print(names(dataHouse))
+dataHouseOrig = dataHouse
+
+colnames <-names(dataHouse) 
+nb_obs   <-nrow(dataHouse)
+nb_vars  <-ncol(dataHouse)
+
+print(nb_vars)
+
+# numerical values matix -last record
+house.matrix= as.matrix(dataHouse[1:nb_obs,])
+
+# print dataframe variable formats
+str(dataHouse)
+
+# check if any missing values
+apply(dataHouse,2,function(x) sum(is.na(x)))
+
+# build discretize medvalue field --> new field = bin.medv
+nb_levels = 6
+function.path1 = paste(current.path,'/function_quantiles.R',sep="")
+source(function.path1)
+step = 1./nb_levels
+percent.vector = seq(from = 0., to = 1., by = step)
+#percent.vector = 
+
+# matching between data$Class and new vector for uniform discretization
+# https://www.r-bloggers.com/from-continuous-to-categorical/
+print(head(dataHouse$medv))
+dataHouse.thresholds = quantile(dataHouse$medv, probs = as.vector(percent.vector))
+print("data.thresholds")
+print(dataHouse.thresholds)
+
+# 8 levels ##10
+dataHouse$bin.medv = cut(dataHouse$medv, breaks=dataHouse.thresholds, labels = c(1:nb_levels)) #c(1:10))
+print(head(dataHouse$bin.medv))
+
+# check if any missing values
+apply(dataHouse,2,function(x) sum(is.na(x)))
+dataHouse$bin.medv[is.na(dataHouse$bin.medv)] = nb_levels
+```
+
+#===================================
+#=== 2) build train / test sets ====
+#===================================
+```{r}
+library(caret)
+
+# Randomly Set the seed, 80/20 split denoted by the sampling vector as positive or negative
+set.seed(7644)
+#house_sampling_vector <- createDataPartition(dataHouseOrig$mdev, p =0.80, list = FALSE)
+# Build train and test sets
+index <- sample(1:nrow(dataHouse),round(0.75*nrow(dataHouse)))
+#house.train <- as.data.frame(dataHouseOrig[index,])
+#house.test  <- as.data.frame(dataHouseOrig[-index,])
+
+house.train <- as.data.frame(dataHouse[index,])
+house.test  <- as.data.frame(dataHouse[-index,])
+
+# positive or negative sampling vector
+# house.train <- as.data.frame(dataHouseOrig[house_sampling_vector,]) 
+# house.test  <- as.data.frame(dataHouseOrig[-house_sampling_vector,]) 
+```
+
+
+#//////////////////// LOGISTIC REGRESSION /////////////////////////
+
+#=====================================
+#====== 10. GLM ======
+#=====================================
+NB : Logistic regression can be applied to target > 2 classes
+http://stats.stackexchange.com/questions/175782/how-to-perform-a-logistic-regression-for-more-than-2-response-classes-in-r
+```{r}
+# build multi-variate relationship formula
+n <- names(dataHouse)
+print(n)
+
+formula_ <- as.formula(paste("bin.medv ~", paste(n[!n %in% c("medv","bin.medv")], collapse = " + ")))
+print(formula_)
+
+# GLM
+library(kernlab)
+#fit.glm <- train(formula_ , data=house.train,method="glm")
+fit.glm <- glm(formula_, data=house.train)
+confusionMatrix(fit.glm)
+
+# GLM trained model Prediction on house.test 
+summary(fit.glm)
+pr.glm  <- predict(fit.glm,house.test)
+MSE.glm <- sum((pr.glm - house.test$bin.medv)^2)/nrow(house.test) #ok 
+```
+
+
+#//////////////////// KNN /////////////////////////
+
+#=====================================
+#====== 9. KNN ====
+#=====================================
+```{r}
+# KNN
+library(kernlab)
+fit.knn <- train(formula_ , data=house.train,method="knn", preProc=c("center", "scale"))
+confusionMatrix(fit.knn)
+
+# Knn trained model Prediction on house.test 
+summary(fit.knn)
+pr.knn  <- predict(fit.knn,house.test)
+MSE.knn <- sum((pr.knn - house.test$bin.medv)^2)/nrow(house.test) #ok 
+```
+
+
+#//////////////////// RANDOM FOREST /////////////////////////
+
+#=====================================
+#====== 8. RF ====
+#=====================================
+```{r}
+# RF
+# build multi-variate relationship formula
+n <- names(dataHouse)
+print(n)
+
+formula_ <- as.formula(paste("bin.medv ~", paste(n[!n %in% c("medv","bin.medv")], collapse = " + ")))
+print(formula_)
+
+fit.rf <- train(formula_, data=house.train, method="rf")
+confusionMatrix(fit.rf)
+
+# RF trained model Prediction on house.test 
+summary(fit.rf)
+pr.rf  <- predict(fit.rf,house.test)
+MSE.rf <- sum((pr.rf - house.test$bin.nb)^2)/nrow(house.test) #ok 
+```
+
+
+#//////////////////// Bagged CART /////////////////////////
+
+#=====================================
+#====== 7. Bagged CART ====
+#=====================================
+```{r}
+# Bagged CART
+fit.treebag <- train(formula_ , data=house.train, method="treebag")
+confusionMatrix(fit.treebag)
+
+# TBG CART trained model Prediction on house.test 
+summary(fit.treebag)
+pr.tbg  <- predict(fit.treebag,house.test)
+MSE.tbg <- sum((pr.tbg - house.test$bin.nb)^2)/nrow(house.test) #ok 
+```
+
+#//////////////////// NAIVE BAYESIAN /////////////////////////
+
+#=====================================
+#====== 6. Naive Bayesian ====
+#=====================================
+```{r}
+# NB
+fit.nb <- train(formula_ , data=house.train,method="nb", preProc=c("center", "scale"))
+confusionMatrix(fit.nb)
+
+# NB trained model Prediction on house.test 
+summary(fit.nb)
+pr.nb  <- predict(fit.nb,house.test)
+MSE.nb <- sum((pr.nb - house.test$bin.nb)^2)/nrow(house.test) #ok 
+```
+
+
+#//////////////////// LDA /////////////////////////
+
+#===========================================
+#====== 3. Linear Discriminant analysis ====
+#===========================================
+```{r}
+print('LDA part')
+print(names(house.train))
+#fit.lda <- train(medv ~ . , data=house.train, na.action="na.omit",method="lda", preProc=c("center", #"scale"))
+fit.lda <- train(formula_ , data=house.train,method="lda", preProc=c("center", "scale"))
+confusionMatrix(fit.lda)
+
+# LDA trained model Prediction on house.test 
+summary(fit.lda)
+pr.lda  <- predict(fit.lda,house.test)
+MSE.lda <- sum((pr.lda - house.test$bin.medv)^2)/nrow(house.test) #ok LDA
+```
+
+#//////////////////// MULTIMODAL REG /////////////////////////
+
+#===========================================
+#====== 4. Multinomial Regression ====
+#===========================================
+```{r}
+# Multinomial Regression
+fit.multinom <- train(formula_ , data=house.train,method="multinom", preProc=c("center", "scale"))
+confusionMatrix(fit.multinom)
+
+# Multinom trained model Prediction on house.test 
+summary(fit.multinom)
+pr.multinom  <- predict(fit.multinom,house.test)
+MSE.multinom <- sum((pr.multinom - house.test$bin.medv)^2)/nrow(house.test) #ok Multi-Reg
+```
+
+#//////////////////// SVM /////////////////////////
+
+#=====================================
+#====== 5. Support Vector Machine ====
+#=====================================
+```{r}
+# SVM
+library(kernlab)
+fit.svm <- train(formula_ , data=house.train,method="svmRadial", preProc=c("center", "scale"))
+confusionMatrix(fit.svm)
+
+# Multinom trained model Prediction on house.test 
+summary(fit.svm)
+pr.svm  <- predict(fit.svm,house.test)
+MSE.svm <- sum((pr.svm - house.test$bin.medv)^2)/nrow(house.test) #ok 
+```
+
+
+
+#//////////////////////////  COMPARE RESULTS FROM 6 MODELS ///////////////////////
+# Identify results
+```{r}
+results <- resamples(list(lda=fit.lda, multinomial=fit.multinom,
+                          svm=fit.svm, knn=fit.knn, nb=fit.nb,
+                          bagging=fit.treebag, rf=fit.rf))
+
+results.diff <- diff(results)
+
+results.diff
+
+summary(results.diff)
+
+# Table comparison
+summary(results)
+
+# boxplot comparison
+bwplot(results)
+
+# Dot-plot comparison
+dotplot(results)
+```

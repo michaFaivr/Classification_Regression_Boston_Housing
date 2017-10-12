@@ -1,0 +1,274 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+
+Exploratory Analysis of wine quality UCI datset
+
+ 
+```{r}
+library(cluster)
+library(FactoMineR)
+library(stringr)
+library(xlsx)
+library(ggplot2)
+library(rpart)
+
+print("start")
+```
+#=== 0) Output ascii file for final and intermediate results tracking ====
+```{r}
+#X11()
+current.path = 'C:/Users/MichaelFaivre/Documents/Personnel/DSTI/14-NEURANETWORKS_AI/R_codes'
+```
+
+
+#=== 1. read the file
+```{r}
+fileWineW = paste(current.path, '/winequality-white.csv',sep="")
+fileWineR = paste(current.path, '/winequality-red.csv',sep="")
+
+dataWineW = read.table(fileWineW,header=TRUE,sep=";",check.names = TRUE,
+           stringsAsFactors = default.stringsAsFactors())
+dataWineR = read.table(fileWineR,header=TRUE,sep=";",check.names = TRUE,
+           stringsAsFactors = default.stringsAsFactors())
+dataWine  = rbind(dataWineW, dataWineR)
+  
+colnames <-names(dataWine) 
+nb_obs   <-nrow(dataWine)
+nb_vars  <-ncol(dataWine)  
+
+# numerical values matix -last record
+wineMatrix= as.matrix(dataWine[1:nb_obs,])
+
+# print dataframe variable formats
+str(dataWine)
+
+# check if any missing values
+apply(dataWine,2,function(x) sum(is.na(x)))
+```
+
+
+#==== 2. summary of all variables 
+```{r}
+print(summary(dataWine))
+```
+
+#====3. var-covariance matrix for all 12 variables 
+```{r}
+library(corrplot)
+row.has.na <- apply(wineMatrix, 1, function(x){any(is.na(x))})
+cleanData = wineMatrix[!row.has.na,]
+
+# correlogram
+# https://cran.r-project.org/web/packages/corrplot/vignettes/corrplot-intro.html
+M <- cor(wineMatrix[,1:12])
+
+head(round(M,2))
+```
+
+
+#====3.b) image of the cov matrix Wine quailty
+http://www.sthda.com/french/wiki/visualiser-une-matrice-de-correlation-par-un-correlogramme
+```{r}
+corrplot(M, method="number",addCoef.col = "black")
+
+# Matrice de p-value de la corrélation
+# mat : matrice de donnée
+# ... : Arguments supplémentaire à passer à la fonction cor.test
+cor.mtest <- function(mat, ...) {
+    mat <- as.matrix(mat)
+    n <- ncol(mat)
+    p.mat<- matrix(NA, n, n)
+    diag(p.mat) <- 0
+    for (i in 1:(n - 1)) {
+        for (j in (i + 1):n) {
+            tmp <- cor.test(mat[, i], mat[, j], ...)
+            p.mat[i, j] <- p.mat[j, i] <- tmp$p.value
+        }
+    }
+  colnames(p.mat) <- rownames(p.mat) <- colnames(mat)
+  p.mat
+}
+
+p.mat <- cor.mtest(wineMatrix)
+head(p.mat[, 1:12])
+
+par(mar=c(5.1,4.1,100.1,2.1))
+##dev.new(width=10, height=8,noRStudioGD = TRUE)
+
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(M, method="color", col=col(120),  
+         type="upper", order="hclust", title="Variance-Cov Matrix",tl.cex=0.9,
+         number.cex=0.65,addCoef.col = "black", # Ajout du coefficient de corrélation
+         tl.col="black", tl.srt=40, #Rotation des etiquettes de textes
+         # Combiner avec le niveau de significativité
+         p.mat = p.mat, sig.level = 0.01, insig = "blank", 
+         # Cacher les coefficients de corrélation sur la diagonale
+         mar=c(0,0,2,0),diag=FALSE 
+         )
+```
+
+#====3.b) image of the cov matrix Boston house
+http://www.sthda.com/french/wiki/visualiser-une-matrice-de-correlation-par-un-correlogramme
+```{r}
+
+library(MASS)
+dataHouse <- Boston
+
+print(names(dataHouse))
+dataHouseOrig = dataHouse
+
+colnames <-names(dataHouse) 
+nb_obs   <-nrow(dataHouse)
+nb_vars  <-ncol(dataHouse)
+
+print(nb_vars)
+
+# numerical values matix -last record
+house.matrix= as.matrix(dataHouse[1:nb_obs,])
+
+M <- cor(house.matrix)
+
+head(round(M,2))
+
+corrplot(M, method="number",addCoef.col = "black")
+
+# Matrice de p-value de la corrélation
+# mat : matrice de donnée
+# ... : Arguments supplémentaire à passer à la fonction cor.test
+cor.mtest <- function(mat, ...) {
+    mat <- as.matrix(mat)
+    n <- ncol(mat)
+    p.mat<- matrix(NA, n, n)
+    diag(p.mat) <- 0
+    for (i in 1:(n - 1)) {
+        for (j in (i + 1):n) {
+            tmp <- cor.test(mat[, i], mat[, j], ...)
+            p.mat[i, j] <- p.mat[j, i] <- tmp$p.value
+        }
+    }
+  colnames(p.mat) <- rownames(p.mat) <- colnames(mat)
+  p.mat
+}
+
+p.mat <- cor.mtest(house.matrix)
+head(p.mat)
+
+##dev.new(width=10, height=8,noRStudioGD = TRUE)
+
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(M, method="color", col=col(120),  
+         type="upper", order="hclust", title="Variance-Cov Matrix",tl.cex=0.9,
+         number.cex=0.65,addCoef.col = "black", # Ajout du coefficient de corrélation
+         tl.col="black", tl.srt=40, #Rotation des etiquettes de textes
+         # Combiner avec le niveau de significativité
+         p.mat = p.mat, sig.level = 0.01, insig = "blank", 
+         # Cacher les coefficients de corrélation sur la diagonale
+         mar=c(0,0,2,0),diag=FALSE 
+         )
+```
+
+
+
+
+##### Kernel Density Estimation
+##### By Eric Cai - The Chemical Statistician
+https://www.r-bloggers.com/exploratory-data-analysis-kernel-density-estimation-in-r-on-ozone-pollution-data-in-new-york-and-ozonopolis/
+```{r}
+# extract
+fixedacidity = dataWine$fixed.acidity
+
+# calculate the number of non-missing values in "ozone"
+n = sum(!is.na(fixedacidity))
+
+# calculate mean, variance and standard deviation of "ozone" by excluding missing values
+mean.fixedacidity = mean(fixedacidity, na.rm = T)
+var.fixedacidity = var(fixedacidity, na.rm = T)
+sd.fixedacidity = sd(fixedacidity, na.rm = T)
+
+# simulate fixedacitidty
+# set seed for you to replicate my random numbers for comparison
+set.seed(1)
+fixedacidity2 = rgamma(n, shape = mean.fixedacidity ^2/var.fixedacidity+3, 
+                       scale = var.fixedacidity/mean.fixedacidity+3)
+
+# obtain values of the kernel density estimates
+density.fixedacidity  = density(fixedacidity , na.rm = T)
+density.fixedacidity2 = density(fixedacidity2, na.rm = T)
+
+# number of points used in density plot
+n.density1 = density.fixedacidity$n
+n.density2 = density.fixedacidity2$n
+
+# bandwidth in density plot
+bw.density1 = density.fixedacidity$bw
+bw.density2 = density.fixedacidity2$bw
+
+###Lpng('INSERT YOUR DIRECTORY PATH HERE/kernel density plot ozone.png')
+plot(density.fixedacidity2, main = 'Kernel Density Estimates of Fixed acidity', xlab = 'fixed acidity', 
+ylab = 'Density', ylim = c(0, 0.1), lty = 1)
+###ylab = 'Density', ylim = c(0, max(density.fixedacidity$y, na.rm = T)), lty = 1)
+
+# add second density plot
+lines(density.fixedacidity, lty = 3)
+
+# add legends to state sample sizes and bandwidths; notice use of paste()
+legend(100, 0.015, paste(': N = ', n.density1, ', Bandwidth = ', round(bw.density1, 1), sep = ''), bty = 'n')
+legend(100, 0.013, paste(': N = ', n.density2, ', Bandwidth = ', round(bw.density2, 1), sep = ''), bty = 'n')
+
+# add legend to label plots
+legend(115, 0.011, c('', ''), lty = c(3,1), bty = 'n')
+###dev.off()
+```
+
+```{r}
+# extract
+alcohol = dataWine$alcohol
+
+# calculate the number of non-missing values in "ozone"
+n = sum(!is.na(alcohol))
+
+# calculate mean, variance and standard deviation of "ozone" by excluding missing values
+mean.alcohol = mean(alcohol, na.rm = T)
+var.alcohol = var(alcohol, na.rm = T)
+sd.alcohol = sd(alcohol, na.rm = T)
+
+# simulate fixedacitidty
+# set seed for you to replicate my random numbers for comparison
+set.seed(1)
+alcohol2 = rgamma(n, shape = mean.alcohol ^2/var.alcohol+3, 
+                       scale = var.alcohol/mean.alcohol+3)
+
+# obtain values of the kernel density estimates
+density.alcohol  = density(alcohol , na.rm = T)
+density.alcohol2 = density(alcohol2, na.rm = T)
+
+# number of points used in density plot
+n.density1 = density.alcohol$n
+n.density2 = density.alcohol2$n
+
+# bandwidth in density plot
+bw.density1 = density.alcohol$bw
+bw.density2 = density.alcohol2$bw
+
+###Lpng('INSERT YOUR DIRECTORY PATH HERE/kernel density plot ozone.png')
+plot(density.alcohol2, main = 'Kernel Density Estimates of Fixed acidity', xlab = 'fixed acidity', ylab = 'Density', ylim = c(0, 0.1), lty = 1)
+##'Density', ylim = c(0, max(density.alcohol$y, na.rm = T)), lty = 1)
+
+# add second density plot
+lines(density.alcohol, lty = 3)
+
+# add legends to state sample sizes and bandwidths; notice use of paste()
+legend(100, 0.015, paste(': N = ', n.density1, ', Bandwidth = ', round(bw.density1, 1), sep = ''), bty = 'n')
+legend(100, 0.013, paste(': N = ', n.density2, ', Bandwidth = ', round(bw.density2, 1), sep = ''), bty = 'n')
+
+# add legend to label plots
+legend(115, 0.011, c('', ''), lty = c(3,1), bty = 'n')
+###dev.off()
+```
+
+
+
+

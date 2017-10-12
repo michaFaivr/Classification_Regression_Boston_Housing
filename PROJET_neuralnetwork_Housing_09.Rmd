@@ -1,0 +1,323 @@
+---
+  output:
+  pdf_document: default
+html_document: default
+---
+
+DATASET
+- 1) house medv from Boston housing value
+
+REF : https://www.r-bloggers.com/fitting-a-neural-network-in-r-neuralnet-package/
+
+```{r}
+library(cluster)
+library(FactoMineR)
+library(stringr)
+library(xlsx)
+library(ggplot2)
+library(rpart)
+
+print("start")
+```
+  
+  
+```{r}
+X11()
+current.path = 'C:/Users/MichaelFaivre/Documents/Personnel/DSTI/14-NEURANETWORKS_AI/R_codes'
+```
+
+use shuffled in trainset/testset
+
+
+3 codes dans le package :
+- PROJET_simplified_Housing.Rmd : 10 models tested Linerar/NL except NNet on MASS Boston RealEstate prices with discretized data for response variable 6 levels
+- PROJET_simplified_WineQuality.Rmd : same as above but for WineQuality data UCI
+- PROJET_NeuralNet_Housing.Rmd : Here
+
+
+
+#===========================================
+#=== 1) read Data and build data frames ====
+#===========================================
+#==== 1.a) data from MASS Boston house price
+```{r}
+set.seed(500)
+library(MASS)
+dataHouse <- Boston
+
+print(names(dataHouse))
+dataHouseOrig = dataHouse
+
+colnames <-names(dataHouse) 
+nb_obs   <-nrow(dataHouse)
+nb_vars  <-ncol(dataHouse)
+
+print(nb_vars)
+
+# numerical values matix -last record
+house.matrix= as.matrix(dataHouse[1:nb_obs,])
+
+# print dataframe variable formats
+str(dataHouse)
+
+# check if any missing values
+apply(dataHouse,2,function(x) sum(is.na(x)))
+
+# build discretize medvalue field --> new field = bin.medv
+nb_levels = 6
+function.path1 = paste(current.path,'/function_quantiles.R',sep="")
+source(function.path1)
+step = 1./nb_levels
+percent.vector = seq(from = 0., to = 1., by = step)
+#percent.vector = 
+
+# matching between data$Class and new vector for uniform discretization
+# https://www.r-bloggers.com/from-continuous-to-categorical/
+print(head(dataHouse$medv))
+dataHouse.thresholds = quantile(dataHouse$medv, probs = as.vector(percent.vector))
+print("data.thresholds")
+print(dataHouse.thresholds)
+
+# 8 levels ##10
+dataHouse$bin.medv = cut(dataHouse$medv, breaks=dataHouse.thresholds, labels = c(1:nb_levels)) #c(1:10))
+print(head(dataHouse$bin.medv))
+
+# check if any missing values
+apply(dataHouse,2,function(x) sum(is.na(x)))
+dataHouse$bin.medv[is.na(dataHouse$bin.medv)] = nb_levels
+```
+
+
+Use $medv continuous --> dataHouseOrig dataframe
+
+#===================================
+#=== 2) build train / test sets ====
+#===================================
+```{r}
+library(caret)
+
+training.ratio = 0.65 #0.55 #0.95
+
+# Randomly Set the seed, 75/25 split denoted by the sampling vector as positive or negative
+set.seed(7644)
+#house_sampling_vector <- createDataPartition(dataHouseOrig$mdev, p =0.80, list = FALSE)
+# Build train and test sets
+index <- sample(1:nrow(dataHouse),round(training.ratio*nrow(dataHouse)))
+house.train <- as.data.frame(dataHouseOrig[index,])
+house.test  <- as.data.frame(dataHouseOrig[-index,])
+```
+
+
+#///////////// GLM as ref for Neural Network assessment ///////////
+#==== 2) Build train and test sets MEDV!!!
+REF : http://stats.idre.ucla.edu/r/dae/logit-regression/
+http://stats.stackexchange.com/questions/175782/how-to-perform-a-logistic-regression-for-more-than-2-response-classes-in-r
+```{r}
+index <- sample(1:nrow(dataHouseOrig),round(training.ratio*nrow(dataHouseOrig)))
+house.train <- dataHouseOrig[index,]
+house.test  <- dataHouseOrig[-index,]
+
+#lm.fit <- glm(medv ~.- bin.medv , data=house.train)
+lm.fit <- glm(medv ~., data=house.train)
+summary(lm.fit)
+pr.lm  <- predict(lm.fit,house.test)
+MSE.lm <- sum((pr.lm - house.test$medv)^2)/nrow(house.test)
+print(MSE.lm)
+```
+
+#=== 2) plot glm fit for MDEV
+```{r}
+plot(house.test$medv,pr.lm,col='blue',main='Real vs predicted lm',pch=18, cex=0.7)
+abline(0,1,lwd=2)
+legend('bottomright',legend='LM',pch=18,col='blue', bty='n', cex=.95)
+```
+
+
+
+#//////////////////// NEURAL NETWORK ////////////////////
+
+#===================================================
+#======= 3. Neural Network for response $medv =====
+#===================================================
+#=== 3.a) prepare data
+```{r}
+maxs <- apply(dataHouseOrig, 2, max) 
+mins <- apply(dataHouseOrig, 2, min)
+scaled <- as.data.frame(scale(dataHouseOrig, center = mins, scale = maxs - mins))
+
+scale.train_ <- scaled[index,]
+scale.test_  <- scaled[-index,]
+```
+
+#=== 3.b) train and test sets 
+```{r}
+set.seed(123456)
+####install.packages("neuralnet")
+library(neuralnet)
+print(names(dataHouse))
+
+# Build train and test sets
+index <- sample(1:nrow(dataHouse),round(training.ratio*nrow(dataHouse)))
+house.train <- dataHouse[index,]
+house.test  <- dataHouse[-index,]
+```
+
+
+#=== 3.c) multivariate formula with response var = medv
+#https://www.r-bloggers.com/fitting-a-neural-network-in-r-neuralnet-package/ !!!
+```{r}
+print(head(dataHouse$bin.medv))
+n <- names(dataHouse)
+print(n)
+formula.nn <- as.formula(paste("medv ~", paste(n[!n %in% c("medv","bin.medv")], collapse = " + ")))
+print(formula.nn)
+
+# formula for bin.mdev
+formula.bin.nn <- as.formula(paste("bin.medv ~", paste(n[!n %in% c("medv","bin.medv")], collapse = " + ")))
+print(formula.bin.nn)
+```
+
+
+#=== 3.d) build the neural network (NN) for response = medv
+```{r}
+print(names(scale.train_))
+
+# ALGO SELECTION
+algo.select = "rprop+"
+algo.select = "slr"
+# algo.select = "backprop"
+
+# neuralnet building 
+house.mdev.net <- neuralnet(formula.nn, data=scale.train_, hidden=c(12,10), learningrate = 0.01,act.fct = "logistic",linear.output=T,algorithm=algo.select,lifesign = "minimal")
+
+#house.mdev.net <- neuralnet(formula.nn, data=scale.train_, hidden=c(6,4),linear.output=T)
+
+# setup 2 : use house.train : not the way to go
+#house.mdev.net <- neuralnet(formula.nn, data=house.train, hidden=c(15,9), #linear.output=FALSE,learningrate = 0.05)
+```
+
+
+#=== 3.e) plot the NN for target = medv
+```{r}
+plot(house.mdev.net, rep = "best")
+```
+
+
+#================================================================
+#====== 4. predict medv with the trained neuralnetwork =======
+#================================================================
+#=== 4.a) computed predicted scores for house.test
+```{r}
+# with scale_test in agreement with neuralnet setup 1
+predict.nn <- compute(house.mdev.net,scale.test_[,1:13])
+compute(house.mdev.net, scale.test_[,1:13])$net.result
+
+# with house.test in agreement with neuralnet setup 2
+#predict.nn <- compute(house.mdev.net,house.test[,1:13])
+#compute(house.mdev.net, house.test[,1:13])$net.result  #does not work with house.train/test
+```
+
+
+#=== 4.b) compute Targets on testset for bin.medv
+```{r}
+# setup 1 with scale.test_
+maxHouseMedv = max(dataHouseOrig$medv)
+minHouseMedv = min(dataHouseOrig$medv)
+
+predict.nn_ <- predict.nn$net.result*(maxHouseMedv-minHouseMedv)+minHouseMedv
+test.r <- (scale.test_$medv)*(maxHouseMedv-minHouseMedv)+minHouseMedv
+
+print(predict.nn)
+```
+
+#=== 4.c) plot Residuals of testset
+```{r}
+#plot(house.test$medv,predict.nn_,col='red',main='Real vs predicted NN',pch=18,cex=0.7)
+plot(test.r,predict.nn_,col='red',main='Real vs predicted NN',pch=18,cex=0.7)
+abline(0,1,lwd=2)
+legend('bottomright',legend='NN',pch=18,col='red', bty='n')
+```
+
+
+#=== 4.d) compute relative errors Prediction vs Target
+```{r}
+MSE.nn <- sum((test.r - predict.nn_)^2)/nrow(house.test)
+print(MSE.nn) 
+```
+
+
+#//////////////////// CROSS-VALIDATION ////////////////////
+
+#===============================================================
+#===== 5. Fast-cross-validation for logistic and neuralnet =====
+#===============================================================
+REF : https://www.r-bloggers.com/fitting-a-neural-network-in-r-neuralnet-package/
+
+Cross validation is another very important step of building predictive models. While there are different kind of cross validation methods, the basic idea is repeating the following process a number of time:
+
+train-test split
+
+Do the train-test split
+Fit the model to the train set
+Test the model on the test set
+Calculate the prediction error
+Repeat the process K times
+Then by calculating the average error we can get a grasp of how the model is doing.
+
+Here is the 10 fold cross validated MSE for the linear model:
+
+```{r}
+library(boot)
+set.seed(200)
+lm.fit <- glm(medv~.,data=house.train)
+cv.glm(house.train,lm.fit,K=10)$delta[1]
+```
+```{r}
+set.seed(450)
+cv.error <- NULL
+k <- 10
+
+library(plyr) 
+pbar <- create_progress_bar('text')
+pbar$init(k)
+```
+Now the net. Note that I am splitting the data in this way: 90% train set and 10% test set in a random way for 10 times. I am also initializing a progress bar using the plyr library because I want to keep an eye on the status of the process since the fitting of the neural network may take a while.
+
+```{r}
+for(i in 1:k){
+    # scaled <- as.data.frame(scale(dataHouseOrig, center = mins, scale = maxs - mins))
+    training.ratio = 0.9
+    index <- sample(1:nrow(dataHouse),round(training.ratio*nrow(dataHouse)))
+    scale.train.cv <- scaled[index,]
+    scale.test.cv  <- scaled[-index,]
+    
+    # configuration 1 fr the neuralnet
+    nn <- neuralnet(formula.nn, data=scale.train.cv, hidden=c(5,2), linear.output=T)
+    
+    maxHouseMedv = max(dataHouseOrig$medv)
+    minHouseMedv = min(dataHouseOrig$medv)
+    
+    predict.nn <- compute(nn, scale.test.cv[,1:13])
+    predict.nn <- predict.nn$net.result*(maxHouseMedv - minHouseMedv)+minHouseMedv
+    
+    test.cv.r  <- (scale.test.cv$medv)*(maxHouseMedv - minHouseMedv) +minHouseMedv
+    
+    cv.error[i] <- sum((test.cv.r - predict.nn)^2)/nrow(scale.test.cv)
+    
+    pbar$step()
+}
+```
+
+```{r}
+print(mean(cv.error))
+
+print(cv.error)
+
+boxplot(cv.error,xlab='MSE CV',col='cyan',
+        border='blue',names='CV error (MSE)',
+        main='CV error (MSE) for NN',horizontal=TRUE)
+```
+
+
+
+
